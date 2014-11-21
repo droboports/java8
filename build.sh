@@ -104,7 +104,7 @@ _build_java8() {
 local VERSION="8u6"
 local BUILD="b23"
 local DATE="12_jun_2014"
-local FILE="ejdk-${VERSION}-fcs-${BUILD}-linux-arm-vfp-sflt-${DATE}.tar.gz"
+local FILE="ejdk-${VERSION}-fcs-${BUILD}-linux-arm-sflt-${DATE}.tar.gz"
 local URL="http://download.oracle.com/otn/java/ejdk/${VERSION}-${BUILD}/${FILE}"
 local FOLDER="ejdk1.8.0_06"
 
