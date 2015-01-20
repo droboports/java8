@@ -21,138 +21,125 @@ exec 1> >(tee -a "${logfile}")
 # redirect errors to stdout
 exec 2> >(tee -a "${logfile}" >&2)
 
-### environment variables ###
+### environment setup ###
 source crosscompile.sh
-export NAME="java8"
+export NAME="$(basename ${PWD})"
 export DEST="/mnt/DroboFS/Shares/DroboApps/${NAME}"
-export DEPS="/mnt/DroboFS/Shares/DroboApps/${NAME}deps"
-export CFLAGS="$CFLAGS -Os -fPIC"
-export CXXFLAGS="$CXXFLAGS $CFLAGS"
+export DEPS="${PWD}/target/install"
+export CFLAGS="${CFLAGS:-} -Os -fPIC"
+export CXXFLAGS="${CXXFLAGS:-} ${CFLAGS}"
 export CPPFLAGS="-I${DEPS}/include"
 export LDFLAGS="${LDFLAGS:-} -Wl,-rpath,${DEST}/lib -L${DEST}/lib"
 alias make="make -j8 V=1 VERBOSE=1"
 
+### support functions ###
+# Download a TGZ file and unpack it, removing old files.
 # $1: file
 # $2: url
 # $3: folder
 _download_tgz() {
+  [[ ! -d "download" ]]      && mkdir -p "download"
+  [[ ! -d "target" ]]        && mkdir -p "target"
   [[ ! -f "download/${1}" ]] && wget -O "download/${1}" "${2}"
-  [[ -d "target/${3}" ]] && rm -v -fr "target/${3}"
-  [[ ! -d "target/${3}" ]] && tar -zxvf "download/${1}" -C target
+  [[   -d "target/${3}" ]]   && rm -vfr "target/${3}"
+  [[ ! -d "target/${3}" ]]   && tar -zxvf "download/${1}" -C target
   return 0
 }
 
+# Download a TGZ file and unpack it, removing old files.
 # $1: file
 # $2: url
 # $3: folder
-# $4: cookies file
-_download_tgz_cookies() {
-  [[ ! -f "download/${1}" ]] && wget -O "download/${1}" --cookies=on --load-cookies="${4}" "${2}"
-  [[ -d "target/${3}" ]] && rm -v -fr "target/${3}"
-  [[ ! -d "target/${3}" ]] && tar -zxvf "download/${1}" -C target
+_download_xz() {
+  [[ ! -d "download" ]]      && mkdir -p "download"
+  [[ ! -d "target" ]]        && mkdir -p "target"
+  [[ ! -f "download/${1}" ]] && wget -O "download/${1}" "${2}"
+  [[   -d "target/${3}" ]]   && rm -vfr "target/${3}"
+  [[ ! -d "target/${3}" ]]   && tar -Jxvf "download/${1}" -C target
   return 0
 }
 
+# Download a DroboApp and unpack it, removing old files.
 # $1: file
 # $2: url
 # $3: folder
 _download_app() {
+  [[ ! -d "download" ]]      && mkdir -p "download"
+  [[ ! -d "target" ]]        && mkdir -p "target"
   [[ ! -f "download/${1}" ]] && wget -O "download/${1}" "${2}"
-  [[ -d "target/${3}" ]] && rm -v -fr "target/${3}"
+  [[   -d "target/${3}" ]]   && rm -vfr "target/${3}"
   mkdir -p "target/${3}"
-  tar -zxvf "download/${1}" -C target/${3}
+  tar -zxvf "download/${1}" -C "target/${3}"
   return 0
 }
 
+# Clone last commit of a single branch from git, removing old files.
 # $1: branch
 # $2: folder
 # $3: url
 _download_git() {
-  [[ -d "target/${2}" ]] && rm -v -fr "target/${2}"
-  [[ ! -d "target/${2}" ]] && git clone --branch "${1}" --single-branch --depth 1 "${3}" "target/${2}"
+  [[ ! -d "target" ]]        && mkdir -p "target"
+  [[   -d "target/${2}" ]]   && rm -vfr "target/${2}"
+  [[ ! -d "target/${2}" ]]   && git clone --branch "${1}" --single-branch --depth 1 "${3}" "target/${2}"
   return 0
 }
 
+# Download a file, overwriting existing.
 # $1: file
 # $2: url
 _download_file() {
+  [[ ! -d "download" ]]      && mkdir -p "download"
   [[ ! -f "download/${1}" ]] && wget -O "download/${1}" "${2}"
   return 0
 }
 
-### ORACLE COOKIE ###
-_build_cookie() {
-local USERAGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_8_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.122 Safari/537.36"
-local POSTDATA
-
-rm -f cookies.txt
-
-wget --debug --verbose --cookies=on --keep-session-cookies --save-cookies=cookies.txt "http://www.oracle.com/webapps/redirect/signon?nexturl=http://www.oracle.com/technetwork/java/embedded/embedded-se/downloads/index.html" --user-agent="${USERAGENT}" -O target/signon.html
-
-POSTDATA=$(sed "s/></>\n</g" target/signon.html | awk -F\" '$1 ~ /input/ && $3 ~ /name/ { printf "%s=%s&", $4, $6 } $1 ~ /\/form/ { exit }')
-
-wget --debug --verbose --cookies=on --keep-session-cookies --load-cookies=cookies.txt --save-cookies=cookies.txt "https://login.oracle.com/mysso/signon.jsp" --user-agent="${USERAGENT}" --post-data="${POSTDATA}" -O target/signon2.html
-
-POSTDATA="$(sed "s/></>\n</g" target/signon2.html | awk -F\" '$1 ~ /input/ && $3 ~ /name/ { printf "%s=%s&", $4, $6 } $1 ~ /\/form/ { exit }')ssousername=bugmenot2009%40mailinator.com&password=Bugmenot2009"
-
-wget --debug --verbose --cookies=on --keep-session-cookies --load-cookies=cookies.txt --save-cookies=cookies.txt "https://login.oracle.com/oam/server/sso/auth_cred_submit" --user-agent="${USERAGENT}" --post-data="${POSTDATA}" -O -
-
+# Download a file in a specific folder, overwriting existing.
+# $1: file
+# $2: url
+# $3: folder
+_download_file_in_folder() {
+  [[ ! -d "download/${3}" ]]      && mkdir -p "download/${3}"
+  [[ ! -f "download/${3}/${1}" ]] && wget -O "download/${3}/${1}" "${2}"
+  return 0
 }
 
-### JAVA8 ###
-_build_java8() {
-local VERSION="8u6"
-local BUILD="b23"
-local DATE="12_jun_2014"
-local FILE="ejdk-${VERSION}-fcs-${BUILD}-linux-arm-sflt-${DATE}.tar.gz"
-local URL="http://download.oracle.com/otn/java/ejdk/${VERSION}-${BUILD}/${FILE}"
-local FOLDER="ejdk1.8.0_06"
-
-_download_tgz_cookies "${FILE}" "${URL}" "${FOLDER}" cookies.txt
-
-#sudo apt-get install openjdk-7-jre-headless
-pushd "target/${FOLDER}/bin"
-JAVA_HOME=/usr ./jrecreate.sh --dest ${DEST} --verbose
-popd
-}
-
-### BUILD ###
-_build() {
-  _build_java8
-  _package
-}
-
+# Create the DroboApp tgz file.
 _create_tgz() {
-  local appname="$(basename ${PWD})"
-  local appfile="${PWD}/${appname}.tgz"
+  local FILE="${PWD}/${NAME}.tgz"
 
-  if [[ -f "${appfile}" ]]; then
-    rm -v "${appfile}"
+  if [[ -f "${FILE}" ]]; then
+    rm -v "${FILE}"
   fi
 
   pushd "${DEST}"
-  tar --verbose --create --numeric-owner --owner=0 --group=0 --gzip --file "${appfile}" *
+  tar --verbose --create --numeric-owner --owner=0 --group=0 --gzip --file "${FILE}" *
   popd
 }
 
+# Package the DroboApp
 _package() {
   mkdir -p "${DEST}"
-  cp -avfR src/dest/* "${DEST}"/
+  [[ -d "src/dest" ]] && cp -vafR "src/dest"/* "${DEST}"/
   find "${DEST}" -name "._*" -print -delete
   _create_tgz
 }
 
+# Remove all compiled files.
 _clean() {
-  rm -v -fr "${DEPS}"
-  rm -v -fr "${DEST}"
-  rm -v -fr target/*
+  rm -vfr "${DEPS}"
+  rm -vfr "${DEST}"
+  rm -vfr target/*
 }
 
+# Removes all files created during the build.
 _dist_clean() {
   _clean
-  rm -v -f logfile*
-  rm -v -fr download/*
+  rm -vf logfile*
+  rm -vfr download/*
 }
+
+### application-specific functions ###
+source app.sh
 
 case "${1:-}" in
   clean)     _clean ;;
