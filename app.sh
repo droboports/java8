@@ -3,9 +3,11 @@
 # $3: folder
 # $4: cookies file
 _download_tgz_cookies() {
-  [[ ! -f "download/${1}" ]] && wget -O "download/${1}" --cookies=on --load-cookies="${4}" "${2}"
-  [[ -d "target/${3}" ]] && rm -v -fr "target/${3}"
-  [[ ! -d "target/${3}" ]] && tar -zxvf "download/${1}" -C target
+  [[ ! -d "download" ]]       && mkdir -p "download"
+  [[ ! -f "download/${1}" ]]  && wget -O "download/${1}" --cookies=on --load-cookies="${4}" "${2}"
+  [[ ! -d "target" ]]         && mkdir -p "target"
+  [[   -d "target/${3}" ]]    && rm -v -fr "target/${3}"
+  [[ ! -d "target/${3}" ]]    && tar -zxvf "download/${1}" -C target
   return 0
 }
 
@@ -28,25 +30,30 @@ wget --debug --verbose --cookies=on --keep-session-cookies --load-cookies=cookie
 
 }
 
+### LOCAL JAVA ###
+_check_java() {
+  if [ ! -f /usr/bin/java ]; then
+    sudo apt-get install openjdk-7-jre-headless
+  fi
+}
+
 ### JAVA8 ###
 _build_java8() {
-local VERSION="8u6"
-local BUILD="b23"
-local DATE="12_jun_2014"
-local FILE="ejdk-${VERSION}-fcs-${BUILD}-linux-arm-sflt-${DATE}.tar.gz"
+local VERSION="8u33"
+local BUILD="b05"
+local FILE="ejdk-${VERSION}-fcs-linux-arm-sflt.tar.gz"
 local URL="http://download.oracle.com/otn/java/ejdk/${VERSION}-${BUILD}/${FILE}"
-local FOLDER="ejdk1.8.0_06"
+local FOLDER="ejdk1.8.0_33"
 
 _download_tgz_cookies "${FILE}" "${URL}" "${FOLDER}" cookies.txt
-
-#sudo apt-get install openjdk-7-jre-headless
 pushd "target/${FOLDER}/bin"
-JAVA_HOME=/usr ./jrecreate.sh --dest ${DEST} --verbose
+JAVA_HOME=/usr ./jrecreate.sh --dest "${DEST}" --verbose
 popd
 }
 
 ### BUILD ###
 _build() {
+  _check_java
   _build_java8
   _package
 }
